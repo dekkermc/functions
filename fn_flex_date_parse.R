@@ -20,15 +20,6 @@ flex_date_parse <- function(input_dates,
                             select_cols = NULL){
   
   
-  ##get the name of the input string as a character to be able to append it to the date column names
-  input_dates_name <- deparse(substitute(input_dates, env = environment())) #env = environment() is a bit hack-y. A more flexible fix is needed
-  
-  
-  ###brief processing of input dates to remove some problematic fields e.g "UTC"
-  strings_to_remove <- paste("utc", "t00:00:00z", collapse = "|")
-  
-  input_dates <- str_replace_all(tolower(input_dates), strings_to_remove, "")
-  
   # 1. identify the date format of each value in a character vector storing dates
   ymd_dates <- ymd(input_dates)
   
@@ -49,9 +40,9 @@ flex_date_parse <- function(input_dates,
   
   ##identifying those with a 00 which is used in some contexts to communicate missing month and/or day
   ##we want to make sure to catch these because they'll still have valid year information
-  has_00_indices <- which(str_detect(input_dates, "00")
-                          & str_detect(input_dates, "200", negate = T)) #exclude those where 00 is in the middle of a year value e.g. 2001
-
+  has_00_indices <- which(str_detect(input_dates, "-00") # adding the dash is a quick fix. This should probably be more flexible to allow other operators
+                          # & str_detect(input_dates, "200", negate = T) #exclude those where 00 is in the middle of a year value e.g. 2001 ## COMMENTED OUT FOR NOW - was removing 2008-00-00 dates
+                          & str_detect(input_dates, "t00:00:00z", negate = T)) #exclude date time values with missing time - this is a consistent pattern 
   
   ###CHECK: make sure there is only one remaining format left based on number of characters in each position (e.g. YYYYMMDD expected)
   has_00_check_format <- input_dates[has_00_indices] %>% 
@@ -62,7 +53,7 @@ flex_date_parse <- function(input_dates,
     unique()
   
   stopifnot("Unexpected date format for values with expected missing month and/or day (YYYYMMDD expected). Please check format of dates meeting partial missing definition" = has_00_check_format == "4|2|2",
-            "Multiple date formats for values with expected missing month and/or day. Please check format of dates meeting partial missing definition" = length(has_00_check_format) %in%  0:1)
+            "Multiple date formats for values with expected missing month and/or day. Please check format of dates meeting partial missing definition" = length(has_00_check_format) == 1)
   ###END CHECK
   
   ##Take first 7 characters of dates likely missing month/date and try to parse as year-month. If it parses, it is likely a year month "date" with missing day
@@ -84,33 +75,34 @@ flex_date_parse <- function(input_dates,
   has_00_not_year_month_indices <- intersect(has_00_indices, not_ym_indices)
   
   ##take first 4 characters of dates likely missing month and date to try to parse as year
-  yr_only_dates_short <- input_dates[has_00_not_year_month_indices] %>%
+  year_only_dates_short <- input_dates[has_00_not_year_month_indices] %>%
     str_sub(1, 4) %>%
     as.numeric()
   
-  yr_only_dates <- rep(as.numeric(NA), length(input_dates))
+  year_only_dates <- rep(as.numeric(NA), length(input_dates))
   
-  yr_only_dates[has_00_not_year_month_indices] <- yr_only_dates_short
+  year_only_dates[has_00_not_year_month_indices] <- year_only_dates_short
   
   
   
-
-
+  ##get the name of the input string as a character to be able to append it to the date column names
+  input_dates_name <- deparse(substitute(input_dates))
+  
   ###crosswalk for var renaming
-  input_dates_name_df <- tibble("old" = c("date_clean",
-                                          "date_format",
-                                          "date_year",
-                                          "date_month",
+  input_dates_name_df <- tibble("old" = c("date_clean", 
+                                          "date_format", 
+                                          "date_year", 
+                                          "date_month", 
                                           "date_day"),
                                 "new" = str_replace(old, "date", input_dates_name))
-
-
+  
+  
   ##create tibble to output
   date_df <- tibble(ymd_dates,
                     dmy_dates,
                     posix_ymd_dates,
                     year_month_only_dates,
-                    "year_only_dates" = yr_only_dates) %>%
+                    year_only_dates) %>%
     mutate("n_formats_parsed" = rowSums(!is.na(.)), #this is to cheeck if a value could be parsed as more than one time of date format to flag and review
            "date_clean" = coalesce(ymd_dates, #the order of the coalesce inputs isn't important since we're flagging those that parse as more than one format
                                    dmy_dates,
@@ -122,40 +114,28 @@ flex_date_parse <- function(input_dates,
                                      !is.na(posix_ymd_dates) ~ "posix-ymd",
                                      !is.na(year_month_only_dates) ~ "year-month-only",
                                      !is.na(year_only_dates) ~ "year-only"),
-           "date_year" = case_when(!is.na(date_clean) ~ year(date_clean), 
+           "date_year" = case_when(!is.na(date_clean) ~ year(date_clean),
                                    date_format == "year-month-only" ~ year(year_month_only_dates),
-                                   date_format == "year-only" ~ as.integer(year_only_dates)),
+                                   date_format == "year-only" ~ year_only_dates),
            "date_month" = case_when(!is.na(date_clean) ~ month(date_clean),
                                     date_format == "year-month-only" ~ month(year_month_only_dates)),
            "date_day" = day(date_clean)) %>%
-  rename_at(vars(input_dates_name_df$old), ~input_dates_name_df$new) #rename columns with the name of the input date variable
+    rename_at(vars(input_dates_name_df$old), ~input_dates_name_df$new) #rename columns with the name of the input date variable
   
-   if(!is.null(select_cols)){date_df <- date_df[,select_cols]}
-
-
-
-   # if(!all_cols ){  
+  if(!is.null(select_cols)){date_df <- date_df[,select_cols]}
+  
   if(!all_cols & is.null(select_cols)){
-
-     date_df <- date_df %>%
-       select(-c(ymd_dates, dmy_dates, posix_ymd_dates, n_formats_parsed, year_month_only_dates))
-
-   }
-
-
-   if(dmy_dates %>%
-      na.omit() %>%
-      length() > 1){warning("Please check dmy dates to ensure that US-style mdy are not being parsed as dmy")}
-
-
-  return(date_df)
+    
+    date_df <- date_df %>%
+      select(-c(ymd_dates, dmy_dates, posix_ymd_dates, n_formats_parsed, year_month_only_dates))
+    
+  }
   
-
+  ifelse(!print_input_name, return(date_df), print(input_dates_name))
+  
+  if(dmy_dates %>%
+     na.omit() %>%
+     length() > 1){warning("Please check dmy dates to ensure that US-style mdy are not being parsed as dmy")}
+  
+  
 }
-
-
-
-
-
-
-
