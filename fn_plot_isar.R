@@ -21,7 +21,7 @@ theme_isar<- function(){
         family = font,            #set font family
         size = 20,                #set font size
         face = 'bold',            #bold typeface
-        hjust = 0,                #left align
+        hjust = .5,                #left align
         vjust = 2),               #raise slightly
       
       plot.subtitle = element_text(          #subtitle
