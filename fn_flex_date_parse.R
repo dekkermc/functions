@@ -155,8 +155,7 @@ flex_date_parse <- function(input_dates,
 
 
 
-emr_hw %>%
-flex_date_parse(.$`Observation Date`)
+
 
 
 
