@@ -53,42 +53,11 @@ theme_isar<- function(){
   
 }
 
-
-
-ggplot(mtcars, aes(gear_fac, fill = gear_fac)) +
-  geom_bar(stat = "count") +
-  theme_isar() 
-
-
-
-ggplot(mtcars, aes(x = disp, y = hp, color = qsec)) +
-  geom_point(size = 3) +
-  scale_color_gradient(low = "#072C52",
-                      high = "#148AFF")
-
-
-
-  scale_fill_manual(values = c("red", "blue", "grey", "orange", "black", "green")) +
-    
-    
-  scale_fill  
     
 
 isar_colors_discrete <- c("#0B5394", "#E66831", "#ffda3f", "#996633", "#1a9850", "#2b8cbe", "#e5f5ff")
   
   
-ggplot(mtcars, aes(factor(carb), fill = factor(carb))) +
-  geom_bar(stat = "count") +
-  scale_fill_manual(values = c("#0B5394", "#E66831", "#ffda3f", "#996633", "#1a9850", "#2b8cbe", "#e5f5ff")) +
-  theme_isar()
-  
 
-ggplot(mtcars, aes(qsec)) +
-  geom_density(color = "red",
-               fill = "red",
-               alpha = .5) +
-  labs(caption = "<img src='https://upload.wikimedia.org/wikipedia/commons/f/f7/Stack_Overflow_logo.png' width='100'/>") +
-  theme(plot.caption = element_markdown())
-  
   
   
