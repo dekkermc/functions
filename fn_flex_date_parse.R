@@ -1,3 +1,9 @@
+if(!require(pacman)){install.packages("pacman")}
+
+p_load(tidyverse,
+       lubridate)
+
+
 #The following function accomplishes the following objeectives:
 # 1. identify the date format of each value in a character vector storing dates
 ## -- We have some fields where multiple date formats are present in one character vector
@@ -7,18 +13,17 @@
 # 5. Set recognized NA values to NA in `_...clean`
 # 6. Flag values that are not recognizable (additional NA value? date format outside of those expected) in `..._format`
 # 7. Flag values that could be more than one date format (e.g. 10-10-10) in `_...format`
-
-if(!require(pacman)){install.packages("pacman")}
-
-p_load(tidyverse,
-       lubridate)
-
 flex_date_parse <- function(input_dates,
-                            all_cols = T,
-                            print_env = F,
-                            print_input_name = F,
+                            all_cols = T, #whether all relevant  columns should be output or just truncated
+                            check_partial_missing = T, #check for partial missing e.g. 2017-00-00
+                            print_env = F, #print environment - for debugging deparse(substitute())
+                            print_input_name = F, #print the name of the variable that's being processed to help with debugging - still a little buggy
                             select_cols = NULL){
   
+  
+  if(print_input_name){print(deparse(substitute(input_dates)))}
+  
+  if(print_env){print(pryr::where(deparse(substitute(input_dates))))}
   
   # 1. identify the date format of each value in a character vector storing dates
   ymd_dates <- ymd(input_dates)
@@ -35,7 +40,9 @@ flex_date_parse <- function(input_dates,
   
   ###fill vector with parsed date time values in their original positions
   posix_ymd_dates[posix_indices] <- input_dates[posix_indices] %>%
-    parse_date_time(orders = "YmdHMS")
+    parse_date_time(orders = "YmdHMS") %>%
+    as.Date()
+  
   
   
   ##identifying those with a 00 which is used in some contexts to communicate missing month and/or day
@@ -53,7 +60,7 @@ flex_date_parse <- function(input_dates,
     unique()
   
   stopifnot("Unexpected date format for values with expected missing month and/or day (YYYYMMDD expected). Please check format of dates meeting partial missing definition" = has_00_check_format == "4|2|2",
-            "Multiple date formats for values with expected missing month and/or day. Please check format of dates meeting partial missing definition" = length(has_00_check_format) == 1)
+            "Multiple date formats for values with expected missing month and/or day. Please check format of dates meeting partial missing definition" = length(has_00_check_format) %in% 0:1)
   ###END CHECK
   
   ##Take first 7 characters of dates likely missing month/date and try to parse as year-month. If it parses, it is likely a year month "date" with missing day
@@ -116,7 +123,7 @@ flex_date_parse <- function(input_dates,
                                      !is.na(year_only_dates) ~ "year-only"),
            "date_year" = case_when(!is.na(date_clean) ~ year(date_clean),
                                    date_format == "year-month-only" ~ year(year_month_only_dates),
-                                   date_format == "year-only" ~ year_only_dates),
+                                   date_format == "year-only" ~ as.integer(year_only_dates)),
            "date_month" = case_when(!is.na(date_clean) ~ month(date_clean),
                                     date_format == "year-month-only" ~ month(year_month_only_dates)),
            "date_day" = day(date_clean)) %>%
@@ -138,4 +145,7 @@ flex_date_parse <- function(input_dates,
      length() > 1){warning("Please check dmy dates to ensure that US-style mdy are not being parsed as dmy")}
   
   
-}
+} 
+
+
+
